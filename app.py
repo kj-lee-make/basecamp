@@ -6,29 +6,30 @@ st.title("Gemini Chatbot")
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"author": "system", "content": "You are a helpful AI assistant."}
-    ]
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
 def send_message():
     user_input = st.session_state.user_input.strip()
     if not user_input:
         return
-    st.session_state.messages.append({"author": "user", "content": user_input})
+
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    chat = model.start_chat(history=st.session_state.chat_history)
+
     with st.spinner("Generating response..."):
-        response = genai.chat.completions.create(
-            model="gemini-1.5-flash",
-            messages=st.session_state.messages
-        )
-    assistant_message = response.choices[0].message.content
-    st.session_state.messages.append({"author": "assistant", "content": assistant_message})
+        response = chat.send_message(user_input)
+
+    st.session_state.chat_history.extend([
+        {"role": "user", "parts": [user_input]},
+        {"role": "model", "parts": [response.text]}
+    ])
     st.session_state.user_input = ""
 
 st.text_input("You:", key="user_input", on_change=send_message)
 
-for msg in st.session_state.messages:
-    if msg["author"] == "user":
-        st.markdown(f"**You:** {msg['content']}")
-    else:
-        st.markdown(f"**Gemini:** {msg['content']}")
+for message in st.session_state.chat_history:
+    if message["role"] == "user":
+        st.markdown(f"**You:** {message['parts'][0]}")
+    elif message["role"] == "model":
+        st.markdown(f"**Gemini:** {message['parts'][0]}")
